@@ -1,0 +1,54 @@
+###POST
+
+POST http://localhost:5000/api/items/found
+Content-Type: application/json
+
+{
+  "itemName": "Blue Backpack"
+  
+}
+
+###GET
+GET http://localhost:5000/api/items/found
+
+###POST Lost Items
+POST http://localhost:5000/api/items/lost
+Content-Type: application/json
+
+{
+  "category":"hello",
+  "email":"@gmal.com"
+}
+
+###
+GET http://localhost:5000/api/items/reported/23071a0504
+###
+DELETE http://localhost:5000/api/items/reported/67a71c4af59b441d6ce6aadb
+
+###
+GET http://localhost:5000/api/items/lost-items/23071a0504@vnrvjiet.in
+
+###
+DELETE http://localhost:5000/api/items/lost-items/23071a0504@vnrvjiet.in
+
+###
+POST  http://localhost:5000/api/items/reported
+
+###
+PUT http://localhost:5000/api/items/admin/67af65cbd3be4890808c4880/handover
+Content-Type: application/json
+
+{
+  "status":"claimed"
+}
+
+
+
+###
+POST https://easyfind.vjstartup.com/ef-be/api/items/lost
+Content-Type: application/json
+
+{
+  "email":"23071a0504@vnrvjiet.in",
+  "category":"Clothing"
+}
