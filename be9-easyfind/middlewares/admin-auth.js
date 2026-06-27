@@ -18,8 +18,9 @@ module.exports = function (req, res, next) {
     const decoded = jwt.verify(token, process.env.AUTH_JWT_SECRET || process.env.JWT_SECRET);
     console.log("✅ Decoded admin data:", decoded);
 
-    const email = decoded.email;
-    if (!email || !ADMIN_EMAILS.includes(email)) {
+    const email = decoded.email?.toLowerCase();
+    const adminEmailsLower = ADMIN_EMAILS.map(e => e.toLowerCase());
+    if (!email || !adminEmailsLower.includes(email)) {
       return res.status(403).json({ msg: 'Forbidden: Email not authorized' });
     }
 

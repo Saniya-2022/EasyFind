@@ -132,10 +132,6 @@ router.get('/found',auth, async (req, res) => {
     // Fetch all items without any query condition
     const foundItems = await Item.find();
     
-    if (foundItems.length === 0) {
-      return res.status(200).json({ message: 'No found items available' });
-    }
-
     res.status(200).json(foundItems);
   } catch (error) {
     console.error('Error fetching found items:', error);
@@ -149,31 +145,69 @@ router.get('/found',auth, async (req, res) => {
 
   router.post('/upload', auth, upload.single('image'), async (req, res) => {
     try {
-      if (!req.file) return res.status(400).json({ success: false, message: 'Image required' });
-  
+      console.log("📤 Upload request received");
+      console.log("Body:", req.body);
+      console.log("File:", req.file);
+      
+      if (!req.file) {
+        console.log("❌ No file uploaded");
+        return res.status(400).json({ success: false, message: 'Image required' });
+      }
+
       const { itemName, description, foundLocation, category, reportedDate } = req.body;
-      if (!itemName || !description || !foundLocation || !category) 
+      console.log("📋 Form data:", { itemName, description, foundLocation, category, reportedDate });
+      
+      if (!itemName || !description || !foundLocation || !category) {
+        console.log("❌ Missing required fields");
         return res.status(400).json({ success: false, message: 'All fields are required' });
-  
+      }
+
+      // Convert reportedDate string to Date object
+      let reportedDateObj;
+      if (reportedDate) {
+        reportedDateObj = new Date(reportedDate);
+        if (isNaN(reportedDateObj.getTime())) {
+          console.log("❌ Invalid date format");
+          return res.status(400).json({ success: false, message: 'Invalid date format' });
+        }
+      } else {
+        reportedDateObj = new Date();
+      }
+
+      console.log("💾 Creating item in database...");
       const newItem = await Item.create({
         itemName,
         description,
         foundLocation,
         category,
         handoverLocation: 'Security Office',
-        status: 'verified', // Admin uploads directly as verified
+        status: 'verified',
         code: await generateUniqueCode(),
-        reportedDate,
+        reportedDate: reportedDateObj,
         image: { url: req.file.path, public_id: req.file.filename }
       });
 
+      console.log("✅ Item created successfully:", newItem);
+
       // send email by calling email dispatcher
-      dispatchEmailJob("matchLostItem",{itemId:newItem._id});
+      try {
+        dispatchEmailJob("matchLostItem",{itemId:newItem._id});
+        console.log("📧 Email job dispatched");
+      } catch (emailError) {
+        console.error("⚠️ Email dispatch failed:", emailError);
+        // Don't fail the upload if email fails
+      }
+      
       res.json(newItem);
   
-      
     } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
+      console.error("💥 Upload error:", error);
+      console.error("Error stack:", error.stack);
+      res.status(500).json({ 
+        success: false, 
+        message: error.message || 'Internal server error',
+        details: error.toString()
+      });
     }
   });
   

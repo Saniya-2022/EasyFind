@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { GoogleLogin, GoogleOAuthProvider } from '@react-oauth/google';
-import jwtDecode from 'jwt-decode';
+import { jwtDecode } from 'jwt-decode';
 
 const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "569225906668-vrjof0n4odj5kmibl6dg072o23r35ege.apps.googleusercontent.com";
 const BE_URL = import.meta.env.VITE_EASYFIND_BACKEND_URL || import.meta.env.VITE_AUTH_BASE_URL || "http://localhost:3115";

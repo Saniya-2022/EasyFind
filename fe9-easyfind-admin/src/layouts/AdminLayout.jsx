@@ -64,7 +64,11 @@ export default function AdminLayout({ children }) {
               <ListItemText primary={item.text} />
             </ListItem>
           ))}
-          <ListItem button onClick={handleLogout}>
+          <ListItem 
+            component="button" 
+            onClick={handleLogout}
+            sx={{ cursor: 'pointer' }}
+          >
             <ListItemIcon><ExitToAppIcon /></ListItemIcon>
             <ListItemText primary="Logout" />
           </ListItem>
