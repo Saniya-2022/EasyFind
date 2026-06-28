@@ -6,7 +6,6 @@ const Item = require('../models/FoundItem');
 const { upload, cloudinary } = require('../config/cloudinary')
 const  auth =require('../middlewares/admin-auth')
 const sendEmail = require("../utils/notifications");
-const stringSimilarity = require("string-similarity");
 const { dispatchEmailJob } = require('../utils/emailDispatcher');
 
   /////////////////////////////////////////////// ADMIN ROUTES///////////////////////////

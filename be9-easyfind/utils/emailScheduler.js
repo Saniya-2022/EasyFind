@@ -8,7 +8,7 @@ const { processPendingNotifications } = require('./emailDispatcher');
 function startEmailScheduler() {
   // Run every 2 hours: '0 */2 * * *'
   // For testing every 5 minutes: '*/5 * * * *'
-  const task = cron.schedule('0 */2 * * * *', async () => {
+  const task = cron.schedule('0 */2 * * *', async () => {
     console.log('⏰ Email scheduler triggered at:', new Date().toISOString());
     await processPendingNotifications();
   });

@@ -6,9 +6,9 @@ const Item = require('../models/FoundItem');
 const { upload, cloudinary } = require('../config/cloudinary')
 const  auth =require('../middlewares/user-auth')
 const sendEmail = require("../utils/notifications");
-const stringSimilarity = require("string-similarity");
 
 const dispatchEmailJob = require("../utils/emailDispatcher");
+const { getLostItemConfirmationEmail, getLostItemConfirmationText } = require("../utils/emailTemplates");
 
 // Submit a lost item
 router.post('/lost',auth, async (req, res) => {
@@ -16,6 +16,18 @@ router.post('/lost',auth, async (req, res) => {
         const lostItem = new LostItem(req.body);
         await lostItem.save();
         console.log("submitted item with details",lostItem)
+        
+        // Send confirmation email to the user
+        try {
+          const { subject, html } = getLostItemConfirmationEmail(lostItem);
+          
+          await sendEmail(lostItem.email, subject, html, true);
+          console.log(`✅ Confirmation email sent to: ${lostItem.email}`);
+        } catch (emailError) {
+          console.error("⚠️ Failed to send confirmation email:", emailError);
+          // Don't fail the request if email fails
+        }
+        
         res.status(201).json({ message: 'Lost item submitted successfully', lostItem });
     } catch (error) {
         res.status(400).json({ message: 'Error submitting lost item', error });

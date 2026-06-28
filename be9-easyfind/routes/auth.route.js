@@ -53,9 +53,10 @@ router.post("/user/login", async (req, res) => {
     const email = payload.email;
     const emailDomain = email?.split("@")[1] || "";
 
-    if (emailDomain !== "vnrvjiet.in") {
-      return res.status(403).json({ error: "Access restricted to vnrvjiet.in domain only" });
-    }
+    // TODO: Re-enable this check after testing
+    // if (emailDomain !== "vnrvjiet.in") {
+    //   return res.status(403).json({ error: "Access restricted to vnrvjiet.in domain only" });
+    // }
 
     let user = await User.findOne({ email });
     if (!user) {
@@ -109,9 +110,10 @@ router.post("/admin/login", async (req, res) => {
     const email = payload.email;
     const emailDomain = email?.split("@")[1] || "";
 
-    if (emailDomain !== "vnrvjiet.in") {
-      return res.status(403).json({ error: "Access restricted to vnrvjiet.in domain only" });
-    }
+    // TODO: Re-enable this check after testing
+    // if (emailDomain !== "vnrvjiet.in") {
+    //   return res.status(403).json({ error: "Access restricted to vnrvjiet.in domain only" });
+    // }
 
     if (!ADMIN_EMAILS.includes(email.toLowerCase())) {
       return res.status(403).json({ error: "Not authorized as admin" });

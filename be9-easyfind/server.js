@@ -75,5 +75,14 @@ app.use("/api/items", userRoutes);
 const { startEmailScheduler } = require('./utils/emailScheduler');
 startEmailScheduler();
 
+// Pre-initialize semantic matcher (optional - loads model on startup)
+// Comment this out if you want lazy loading (model loads on first match)
+setTimeout(() => {
+  const { initializeEmbedder } = require('./utils/semanticMatcher');
+  initializeEmbedder()
+    .then(() => console.log('✅ Semantic matcher pre-initialized'))
+    .catch(err => console.warn('⚠️  Semantic matcher will initialize on first use:', err.message));
+}, 5000); // Wait 5 seconds after server starts
+
 const PORT = process.env.PORT;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

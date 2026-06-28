@@ -2,8 +2,8 @@ const LostItem = require("../models/LostItem");
 const Item = require("../models/FoundItem");
 const EmailNotification = require("../models/EmailNotification");
 const sendEmail = require("./notifications");
-const stringSimilarity = require("string-similarity");
-const { getLostItemMatchEmail, getLostItemMatchText } = require('./emailTemplates');
+const { findMatchingLostItems, SIMILARITY_THRESHOLD } = require('./semanticMatcher');
+const { getLostItemMatchEmail } = require('./emailTemplates');
 
 /**
  * Dispatches email jobs by creating notification records
@@ -28,6 +28,33 @@ async function dispatchEmailJob(type, payload) {
             status: 'pending',
           });
           console.log(`📨 Email notification queued for item: ${payload.itemId}`);
+          
+          // Process immediately for faster notification
+         setTimeout(async () => {
+  try {
+    const notification = await EmailNotification.findOne({
+      type: "matchLostItem",
+      relatedItem: payload.itemId,
+      status: "pending",
+    });
+
+    if (!notification) {
+      console.log("No pending notification found.");
+      return;
+    }
+
+    notification.status = "processing";
+    notification.lastAttempt = new Date();
+    notification.attempts += 1;
+    await notification.save();
+
+    await processMatchNotification(notification);
+
+  } catch (err) {
+    console.error("⚠️ Immediate processing failed:", err);
+  }
+}, 1000);
+          
         } else {
           console.log(`⏭️  Notification already queued for item: ${payload.itemId}`);
         }
@@ -110,57 +137,124 @@ async function processPendingNotifications() {
  * @param {Object} notification - EmailNotification document
  */
 async function processMatchNotification(notification) {
-  const item = await Item.findById(notification.relatedItem);
-  if (!item) {
-    throw new Error('Item not found');
+  console.log(`\n🔍 Processing notification ${notification._id} for item ${notification.relatedItem}`);
+  
+  let item;
+  try {
+    item = await Item.findById(notification.relatedItem);
+    if (!item) {
+      console.error(`❌ Item not found: ${notification.relatedItem}`);
+      throw new Error('Item not found');
+    }
+    console.log(`📦 Found item: ${item.itemName} (${item.category})`);
+  } catch (error) {
+    console.error('Error fetching item:', error);
+    throw error;
   }
 
   if (!item.description) {
+    console.error(`❌ Item ${item._id} has no description`);
     throw new Error('Item has no description');
   }
 
-  const lostItems = await LostItem.find({});
-  let emailsSent = 0;
+  try {
+    const lostItems = await LostItem.find({});
+    console.log(`📋 Found ${lostItems.length} lost items in database`);
 
-  for (const lostItem of lostItems) {
-    const checker = [
-      lostItem.itemName,
-      lostItem.category,
-      // lostItem.location,
-      // lostItem.dateLost,
-      // lostItem.description,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-
-    const similarity = stringSimilarity.compareTwoStrings(
-      item.description.toLowerCase(),
-      checker
-    );
-
-    if (similarity > 0.1) {
-      // Generate HTML email from template
-      const { subject, html } = getLostItemMatchEmail(lostItem, item);
-      
-      await sendEmail(
-        lostItem.email,
-        subject,
-        html,
-        true // Set isHTML flag to true
-      );
-      emailsSent++;
-      console.log(`✅ Email sent to: ${lostItem.email}`);
+    if (lostItems.length === 0) {
+      console.log('⚠️  No lost items to match against');
+      notification.status = 'completed';
+      notification.emailsSent = 0;
+      notification.processedAt = new Date();
+      await notification.save();
+      return;
     }
+
+    let emailsSent = 0;
+
+  try {
+    // Use semantic matching instead of string similarity
+    console.log('🤖 Starting semantic matching...');
+    console.log(`   Item: "${item.itemName}" - ${item.description?.substring(0, 100)}...`);
+    
+    let matches;
+    try {
+      matches = await findMatchingLostItems(item, lostItems);
+    } catch (semanticError) {
+      console.error('⚠️  Semantic matching failed, using fallback keyword matching...');
+      console.error('   Semantic error:', semanticError.message);
+      
+      // Fallback: Simple keyword matching
+      matches = [];
+      const itemKeywords = (item.itemName + ' ' + item.description + ' ' + item.category).toLowerCase().split(' ');
+      
+      for (const lostItem of lostItems) {
+        const lostText = (lostItem.itemName + ' ' + lostItem.description + ' ' + lostItem.category).toLowerCase();
+        const matchCount = itemKeywords.filter(keyword => lostText.includes(keyword)).length;
+        const similarity = matchCount / Math.max(itemKeywords.length, 1);
+        
+        if (similarity >= 0.3) { // Lower threshold for fallback
+          matches.push({ lostItem, similarity });
+          console.log(`   🔄 Fallback match: "${lostItem.itemName}" (score: ${(similarity * 100).toFixed(2)}%)`);
+        }
+      }
+      
+      matches.sort((a, b) => b.similarity - a.similarity);
+    }
+
+    console.log(`🎯 Found ${matches.length} matches (threshold: ${SIMILARITY_THRESHOLD})`);
+
+    if (matches.length === 0) {
+      console.log('ℹ️  No matches found. For debugging:');
+      console.log(`   Lost items in DB: ${lostItems.length}`);
+      console.log(`   Searching for: "${item.itemName}" in category "${item.category}"`);
+      console.log(`   Description: "${item.description?.substring(0, 100)}..."`);
+      console.log(`   Location: "${item.foundLocation}"`);
+      console.log(`   Tip: Lower SIMILARITY_THRESHOLD in .env if needed (current: ${SIMILARITY_THRESHOLD})`);
+    }
+
+    for (const match of matches) {
+      const { lostItem, similarity } = match;
+      
+      try {
+        // Generate HTML email from template
+        const { subject, html } = getLostItemMatchEmail(lostItem, item);
+        
+        console.log(`📧 Sending email to: ${lostItem.email}`);
+        await sendEmail(
+          lostItem.email,
+          subject,
+          html,
+          true // Set isHTML flag to true
+        );
+        emailsSent++;
+        console.log(`✅ Email sent to: ${lostItem.email} (similarity: ${(similarity * 100).toFixed(2)}%)`);
+      } catch (emailError) {
+        console.error(`❌ Failed to send email to ${lostItem.email}:`, emailError.message);
+        console.error('   Email error details:', emailError);
+      }
+    }
+  } catch (matchingError) {
+    console.error('❌ Error in matching process:', matchingError);
+    console.error('Stack:', matchingError.stack);
+    // Don't throw - mark as completed with 0 emails sent
   }
 
-  // Mark as completed
-  notification.status = 'completed';
-  notification.emailsSent = emailsSent;
-  notification.processedAt = new Date();
-  await notification.save();
+    // Mark as completed
+   notification.status = "completed";
+notification.emailsSent = emailsSent;
+notification.processedAt = new Date();
 
-  console.log(`✅ Processed item ${item._id}: ${emailsSent} emails sent`);
+if (notification.save) {
+    await notification.save();
+}
+
+    console.log(`✅ Processed item ${item._id}: ${emailsSent} emails sent\n`);
+  } catch (error) {
+    console.error('❌ Error in processMatchNotification:', error);
+    console.error('Stack:', error.stack);
+    throw error;
+  }
 }
 
 module.exports = { 

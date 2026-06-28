@@ -15,12 +15,13 @@ passport.use(
         const email = profile.emails[0].value;
         const emailDomain = email.split('@')[1];
 
-        if (emailDomain !== 'vnrvjiet.in') {
-          return done(null, false, { 
-            message: 'Access restricted to vnrvjiet.in domain only',
-            type: 'UNAUTHORIZED_DOMAIN' 
-          });
-        }
+        // TODO: Re-enable this check after testing
+        // if (emailDomain !== 'vnrvjiet.in') {
+        //   return done(null, false, { 
+        //     message: 'Access restricted to vnrvjiet.in domain only',
+        //     type: 'UNAUTHORIZED_DOMAIN' 
+        //   });
+        // }
 
         let user = await User.findOne({ googleId: profile.id });
 
