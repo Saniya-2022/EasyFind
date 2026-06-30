@@ -1,22 +1,29 @@
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Menu, User, LogOut, Search, AlertCircle, Home, Bell, X } from 'lucide-react';
+import { Menu, User, LogOut, Search, AlertCircle, Home, Bell, X, QrCode, FileText, Target } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
+import { useNotifications } from '../contexts/NotificationContext';
 
 const navItems = [
   { path: '/dashboard', icon: Home, label: 'Home' },
   { path: '/dashboard/report-item', icon: AlertCircle, label: 'Report Item' },
   { path: '/dashboard/lost-item', icon: Bell, label: 'Lost Item?' },
   { path: '/dashboard/search-item', icon: Search, label: 'Search Item' },
+  { path: '/dashboard/my-matches', icon: Target, label: 'My Matches' },
+  { path: '/dashboard/my-claims', icon: FileText, label: 'My Claims' },
+  { path: '/dashboard/my-qr-pass', icon: QrCode, label: 'My QR Pass' },
   { path: '/dashboard/user-profile', icon: User, label: 'User Profile' },
 ];
 
 const Header = () => {
   const { user, logout } = useAuth();
+  const { unreadCount, notifications, markAsRead } = useNotifications();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const menuRef = useRef(null);
+  const notifRef = useRef(null);
 
   // Responsive handling
   useEffect(() => {
@@ -39,6 +46,7 @@ const Header = () => {
   const handleEscape = (event) => {
     if (event.key === 'Escape') {
       setMenuOpen(false);
+      setShowNotifications(false);
     }
   };
 
@@ -53,10 +61,39 @@ const Header = () => {
     }
   }, [menuOpen]);
 
+  // Close notifications when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notifRef.current && !notifRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+    };
+
+    if (showNotifications) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showNotifications]);
+
   // Smooth navigation
   const handleNavigation = (path) => {
     setMenuOpen(false);
+    setShowNotifications(false);
     navigate(path);
+  };
+
+  const handleNotificationClick = async (notification) => {
+    await markAsRead(notification._id);
+    
+    // Navigate based on notification type
+    if (notification.type === 'QR_READY' && notification.data?.qrId) {
+      navigate('/dashboard/my-qr-pass');
+    }
+    
+    setShowNotifications(false);
   };
 
   return (
@@ -73,6 +110,83 @@ const Header = () => {
 
       {user && (
         <div className="relative" ref={menuRef}>
+          {/* Notification Bell */}
+          <div className="relative" ref={notifRef}>
+            <button
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+              aria-label="Notifications"
+            >
+              <Bell size={20} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {/* Notifications Dropdown */}
+            {showNotifications && (
+              <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-hidden z-50">
+                <div className="p-4 bg-gray-50 border-b border-gray-200">
+                  <h3 className="font-semibold text-gray-800">Notifications</h3>
+                </div>
+                
+                <div className="overflow-y-auto max-h-72">
+                  {notifications.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500 text-sm">
+                      No notifications
+                    </div>
+                  ) : (
+                    notifications.slice(0, 10).map((notif) => (
+                      <div
+                        key={notif._id}
+                        onClick={() => handleNotificationClick(notif)}
+                        className={`p-3 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
+                          !notif.read ? 'bg-blue-50' : ''
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 text-2xl">
+                            {notif.type === 'QR_READY' && '🎉'}
+                            {notif.type === 'ITEM_CLAIMED' && '📦'}
+                            {notif.type === 'ITEM_EXPIRED' && '⏰'}
+                            {notif.type === 'GENERAL' && '📢'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-medium text-gray-800 ${!notif.read ? 'font-semibold' : ''}`}>
+                              {notif.title}
+                            </p>
+                            <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                              {notif.message}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              {new Date(notif.createdAt).toLocaleString()}
+                            </p>
+                          </div>
+                          {!notif.read && (
+                            <div className="flex-shrink-0 w-2 h-2 bg-blue-500 rounded-full mt-1"></div>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {notifications.length > 0 && (
+                  <div className="p-2 bg-gray-50 border-t border-gray-200">
+                    <button
+                      onClick={() => handleNavigation('/dashboard/my-qr-pass')}
+                      className="w-full text-center text-sm text-blue-600 hover:text-blue-800 font-medium py-2"
+                    >
+                      View All Notifications
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {isMobile ? (
             <button 
               aria-label="Toggle menu"

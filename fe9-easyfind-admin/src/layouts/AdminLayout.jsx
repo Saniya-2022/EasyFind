@@ -20,6 +20,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import PeopleIcon from '@mui/icons-material/People';
 import UploadIcon from '@mui/icons-material/Upload';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
+import AssignmentIcon from '@mui/icons-material/Assignment';
 
 const drawerWidth = 240;
 const AppBar = styled(MuiAppBar)(({ theme }) => ({
@@ -29,6 +30,7 @@ const AppBar = styled(MuiAppBar)(({ theme }) => ({
 const menuItems = [
   { text: 'Dashboard', path: '/admin', icon: <DashboardIcon /> },
   { text: 'Approve Items', path: '/admin/approve', icon: <CheckIcon /> },
+  { text: 'Claim Requests', path: '/admin/claims', icon: <AssignmentIcon /> },
   { text: 'Give to Student', path: '/admin/give', icon: <PeopleIcon /> },
   { text: 'Upload Item', path: '/admin/upload', icon: <UploadIcon /> },
   { text: 'Edit Items', path: '/admin/edit', icon: <CheckIcon /> },

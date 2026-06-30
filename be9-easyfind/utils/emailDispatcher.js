@@ -3,7 +3,7 @@ const Item = require("../models/FoundItem");
 const EmailNotification = require("../models/EmailNotification");
 const sendEmail = require("./notifications");
 const { findMatchingLostItems, SIMILARITY_THRESHOLD } = require('./semanticMatcher');
-const { getLostItemMatchEmail } = require('./emailTemplates');
+const { getLostItemMatchEmail, getClaimSubmittedEmail, getClaimApprovedEmail, getClaimRejectedEmail } = require('./emailTemplates');
 
 /**
  * Dispatches email jobs by creating notification records
@@ -71,6 +71,44 @@ async function dispatchEmailJob(type, payload) {
         console.log(`📨 Custom email notification queued`);
         break;
 
+      case "claimSubmitted":
+        await EmailNotification.create({
+          type: 'claimSubmitted',
+          recipientEmail: payload.userEmail,
+          userId: payload.userId,
+          claimId: payload.claimId,
+          foundItemId: payload.foundItemId,
+          status: 'pending',
+        });
+        console.log(`📨 Claim submitted email queued for user: ${payload.userEmail}`);
+        break;
+
+      case "claimApproved":
+        await EmailNotification.create({
+          type: 'claimApproved',
+          recipientEmail: payload.userEmail,
+          userId: payload.userId,
+          claimId: payload.claimId,
+          foundItemId: payload.foundItemId,
+          qrImage: payload.qrImage,
+          status: 'pending',
+        });
+        console.log(`📨 Claim approved email queued for user: ${payload.userEmail}`);
+        break;
+
+      case "claimRejected":
+        await EmailNotification.create({
+          type: 'claimRejected',
+          recipientEmail: payload.userEmail,
+          userId: payload.userId,
+          claimId: payload.claimId,
+          foundItemId: payload.foundItemId,
+          reviewNotes: payload.reviewNotes,
+          status: 'pending',
+        });
+        console.log(`📨 Claim rejected email queued for user: ${payload.userEmail}`);
+        break;
+
       default:
         console.warn("Unknown email job type:", type);
     }
@@ -113,6 +151,12 @@ async function processPendingNotifications() {
           notification.processedAt = new Date();
           await notification.save();
           console.log(`✅ Custom email sent to: ${notification.recipientEmail}`);
+        } else if (notification.type === 'claimSubmitted') {
+          await processClaimSubmittedEmail(notification);
+        } else if (notification.type === 'claimApproved') {
+          await processClaimApprovedEmail(notification);
+        } else if (notification.type === 'claimRejected') {
+          await processClaimRejectedEmail(notification);
         }
       } catch (err) {
         notification.error = err.message;
@@ -257,7 +301,111 @@ if (notification.save) {
   }
 }
 
+/**
+ * Process claim submitted email
+ */
+async function processClaimSubmittedEmail(notification) {
+  try {
+    const Claim = require("../models/Claim");
+    const claim = await Claim.findById(notification.claimId)
+      .populate("foundItemId")
+      .populate("userId", "name email");
+
+    if (!claim) {
+      throw new Error("Claim not found");
+    }
+
+    const { subject, html } = getClaimSubmittedEmail(
+      claim.studentDetails?.name || claim.userId?.name || "Student",
+      claim.foundItemId
+    );
+
+    await sendEmail(notification.recipientEmail, subject, html, true);
+
+    notification.status = 'completed';
+    notification.emailsSent = 1;
+    notification.processedAt = new Date();
+    await notification.save();
+
+    console.log(`✅ Claim submitted email sent to: ${notification.recipientEmail}`);
+  } catch (err) {
+    console.error(`❌ Failed to send claim submitted email:`, err.message);
+    throw err;
+  }
+}
+
+/**
+ * Process claim approved email
+ */
+async function processClaimApprovedEmail(notification) {
+  try {
+    const Claim = require("../models/Claim");
+    const claim = await Claim.findById(notification.claimId)
+      .populate("foundItemId")
+      .populate("userId", "name email");
+
+    if (!claim) {
+      throw new Error("Claim not found");
+    }
+
+    const { subject, html } = getClaimApprovedEmail(
+      claim.studentDetails?.name || claim.userId?.name || "Student",
+      claim.foundItemId,
+      notification.qrImage
+    );
+
+    await sendEmail(notification.recipientEmail, subject, html, true);
+
+    notification.status = 'completed';
+    notification.emailsSent = 1;
+    notification.processedAt = new Date();
+    await notification.save();
+
+    console.log(`✅ Claim approved email sent to: ${notification.recipientEmail}`);
+  } catch (err) {
+    console.error(`❌ Failed to send claim approved email:`, err.message);
+    throw err;
+  }
+}
+
+/**
+ * Process claim rejected email
+ */
+async function processClaimRejectedEmail(notification) {
+  try {
+    const Claim = require("../models/Claim");
+    const claim = await Claim.findById(notification.claimId)
+      .populate("foundItemId")
+      .populate("userId", "name email");
+
+    if (!claim) {
+      throw new Error("Claim not found");
+    }
+
+    const { subject, html } = getClaimRejectedEmail(
+      claim.studentDetails?.name || claim.userId?.name || "Student",
+      claim.foundItemId,
+      notification.reviewNotes
+    );
+
+    await sendEmail(notification.recipientEmail, subject, html, true);
+
+    notification.status = 'completed';
+    notification.emailsSent = 1;
+    notification.processedAt = new Date();
+    await notification.save();
+
+    console.log(`✅ Claim rejected email sent to: ${notification.recipientEmail}`);
+  } catch (err) {
+    console.error(`❌ Failed to send claim rejected email:`, err.message);
+    throw err;
+  }
+}
+
 module.exports = { 
   dispatchEmailJob, 
-  processPendingNotifications 
+  processPendingNotifications,
+  processClaimSubmittedEmail,
+  processClaimApprovedEmail,
+  processClaimRejectedEmail
 };

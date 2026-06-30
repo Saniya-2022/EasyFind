@@ -10,6 +10,9 @@ import ApproveItems from "./components/ManageItems";
 import GiveToStudent from "./components/GiveToStudent";
 import UploadItem from "./components/UploadItem";
 import EditItem from "./components/EditItem";
+import PendingHandovers from "./components/PendingHandovers";
+import QRScanner from "./components/QRScanner";
+import ClaimRequests from "./components/ClaimRequests";
 
 const BE_URL = import.meta.env.VITE_EASYFIND_BACKEND_URL || "http://localhost:3115";
 
@@ -60,10 +63,13 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={isAuthenticated ? <AdminLayout><AdminDashboard /></AdminLayout> : <Navigate to="/login" replace />} />
           <Route path="/admin" element={isAuthenticated ? <AdminLayout><AdminDashboard /></AdminLayout> : <Navigate to="/login" replace />} />
-          <Route path="/admin/approve" element={isAuthenticated ? <AdminLayout><ApproveItems /></AdminLayout> : <Navigate to="/login" replace />} />
-          <Route path="/admin/give" element={isAuthenticated ? <AdminLayout><GiveToStudent /></AdminLayout> : <Navigate to="/login" replace />} />
-          <Route path="/admin/upload" element={isAuthenticated ? <AdminLayout><UploadItem /></AdminLayout> : <Navigate to="/login" replace />} />
+  <Route path="/admin/approve" element={isAuthenticated ? <AdminLayout><ApproveItems /></AdminLayout> : <Navigate to="/login" replace />} />
+  <Route path="/admin/give" element={isAuthenticated ? <AdminLayout><GiveToStudent /></AdminLayout> : <Navigate to="/login" replace />} />
+  <Route path="/admin/upload" element={isAuthenticated ? <AdminLayout><UploadItem /></AdminLayout> : <Navigate to="/login" replace />} />
           <Route path="/admin/edit" element={isAuthenticated ? <AdminLayout><EditItem /></AdminLayout> : <Navigate to="/login" replace />} />
+          <Route path="/admin/handovers" element={isAuthenticated ? <AdminLayout><PendingHandovers /></AdminLayout> : <Navigate to="/login" replace />} />
+          <Route path="/admin/scan-qr" element={isAuthenticated ? <QRScanner /> : <Navigate to="/login" replace />} />
+          <Route path="/admin/claims" element={isAuthenticated ? <AdminLayout><ClaimRequests /></AdminLayout> : <Navigate to="/login" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </ThemeProvider>

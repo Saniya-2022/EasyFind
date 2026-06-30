@@ -36,8 +36,9 @@ const foundItemSchema = new mongoose.Schema(
         },
         status: {
             type: String,
-            enum: ["pending", "verified", "claimed"],
+            enum: ["pending", "verified", "reserved", "handed_over"],
             default: "pending",
+            index: true,
         },
         claimerDetails: {
             name: {
@@ -69,5 +70,9 @@ const foundItemSchema = new mongoose.Schema(
         timestamps: true,
     }
 );
+
+// Indexes for common queries
+foundItemSchema.index({ status: 1, createdAt: -1 });
+foundItemSchema.index({ reporterRollNo: 1, createdAt: -1 });
 
 module.exports = mongoose.model("FoundItem", foundItemSchema);

@@ -4,7 +4,10 @@ const cors = require("cors");
 const passport = require("passport");
 const authRoutes = require("./routes/auth.route");
 const adminRoutes = require("./routes/admin.route");
-const userRoutes = require("./routes/user.route")  
+const userRoutes = require("./routes/user.route");
+const qrRoutes = require("./routes/qr.route");
+const notificationRoutes = require("./routes/notification.route");
+const claimRoutes = require("./routes/claim.route");
 const cookieParser = require("cookie-parser");
 
 // const userDetails = require("./apis/users/userDetails");
@@ -67,6 +70,9 @@ app.get("/health", (req, res) => {
 app.use("/auth", authRoutes);
 app.use("/api/items/admin", adminRoutes);
 app.use("/api/items", userRoutes);
+app.use("/api/qr", qrRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/claims", claimRoutes);
 // app.use("/api", userDetails);
 
 // app.use("/api/security", securityRoutes);
@@ -74,6 +80,10 @@ app.use("/api/items", userRoutes);
 // Start email scheduler
 const { startEmailScheduler } = require('./utils/emailScheduler');
 startEmailScheduler();
+
+// Start QR expiry cron job
+const { startQRExpiryCron } = require('./utils/qrScheduler');
+startQRExpiryCron();
 
 // Pre-initialize semantic matcher (optional - loads model on startup)
 // Comment this out if you want lazy loading (model loads on first match)

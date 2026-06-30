@@ -7,6 +7,8 @@ const { upload, cloudinary } = require('../config/cloudinary')
 const  auth =require('../middlewares/admin-auth')
 const sendEmail = require("../utils/notifications");
 const { dispatchEmailJob } = require('../utils/emailDispatcher');
+const { createQRCode } = require('../utils/qrService');
+const { createQRReadyNotification } = require('../utils/notificationService');
 
   /////////////////////////////////////////////// ADMIN ROUTES///////////////////////////
   // admin login
@@ -211,38 +213,121 @@ router.get('/found',auth, async (req, res) => {
   });
   
 
-// handover items
-router.put("/:id/handover",auth, upload.single("image"), async (req, res) => {
+// QR-based handover - New secure handover system
+router.put("/:id/handover", auth, upload.single("image"), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ success: false, message: "Proof image required" });
-
     const { id } = req.params;
-    const { contact, rollNo, name } = req.body;
+    const { qrToken } = req.body;
 
-    if (!contact || !rollNo || !name) {
-      return res.status(400).json({ success: false, message: "All fields (contact, rollNo, name) are required" });
+    if (!qrToken) {
+      return res.status(400).json({ success: false, message: "QR token is required" });
     }
 
-    const item = await Item.findById(id);
-    if (!item) return res.status(404).json({ success: false, message: "Item not found" });
+    // Find the QR code
+    const QRCode = require('../models/QRCode');
+    const qrCode = await QRCode.findOne({ token: qrToken });
+    
+    if (!qrCode) {
+      return res.status(400).json({ success: false, message: "Invalid QR code" });
+    }
 
-    // Update status and store Cloudinary image details
+    // Check QR status
+    if (qrCode.status !== "ACTIVE") {
+      return res.status(400).json({ 
+        success: false, 
+        message: `QR code is ${qrCode.status.toLowerCase()}`,
+        qrStatus: qrCode.status
+      });
+    }
+
+    // Check if QR expired
+    if (new Date() > qrCode.expiryTime) {
+      qrCode.status = "EXPIRED";
+      await qrCode.save();
+      return res.status(400).json({ 
+        success: false, 
+        message: "QR code has expired",
+        expiredAt: qrCode.expiryTime
+      });
+    }
+
+    // Find the item
+    const item = await Item.findById(id);
+    if (!item) {
+      return res.status(404).json({ success: false, message: "Item not found" });
+    }
+
+    // Verify item matches QR code
+    if (item._id.toString() !== qrCode.itemId.toString()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "QR code does not match this item" 
+      });
+    }
+
+    // Check if item is in reserved status
+    if (item.status !== "reserved") {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Item must be in reserved status for handover",
+        currentStatus: item.status 
+      });
+    }
+
+    // Get claim details
+    const Claim = require('../models/Claim');
+    const claim = await Claim.findById(qrCode.claimId);
+    if (!claim) {
+      return res.status(404).json({ success: false, message: "Associated claim not found" });
+    }
+
+    if (claim.status !== "APPROVED") {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Claim is ${claim.status.toLowerCase()}, only approved claims can be handed over` 
+      });
+    }
+
+    // Get student details from QR code
+    const User = require('../models/User');
+    const student = await User.findById(qrCode.userId);
+
+    // Update item status to claimed
     item.status = "claimed";
     item.claimerDetails = {
-      contact,
-      rollNo,
-      name,
-      proofs: [
-        ...(item.claimerDetails?.proofs || []),
-        { url: req.file.path, public_id: req.file.filename }
-      ]
+      name: student?.name || claim.studentDetails?.name || "Unknown",
+      rollNo: student?.rollNo || claim.studentDetails?.rollNo || "N/A",
+      contact: student?.contact || claim.studentDetails?.contact || "N/A",
+      email: student?.email || claim.studentDetails?.email || "N/A",
+      dateHandovered: new Date(),
+      qrToken: qrToken,
+      proofs: req.file ? [{ url: req.file.path, public_id: req.file.filename }] : []
     };
-
     await item.save();
-    console.log("Item handed over successfully with item details", item);
-    res.json({ success: true, message: "Item handed over successfully", item });
+
+    // Update QR code status to USED
+    qrCode.status = "USED";
+    qrCode.usedAt = new Date();
+    qrCode.usedBy = req.admin?.id || req.user?.id;
+    await qrCode.save();
+
+    // Update claim status to COMPLETED
+    claim.status = "COMPLETED";
+    claim.completedAt = new Date();
+    claim.completedBy = req.admin?.id || req.user?.id;
+    await claim.save();
+
+    console.log("✅ Item handed over successfully:", item._id);
+
+    res.json({ 
+      success: true, 
+      message: "Item handed over successfully",
+      item: item,
+      qrStatus: "USED",
+      claimStatus: "COMPLETED"
+    });
   } catch (error) {
-    console.error("Error updating item:", error);
+    console.error("Error during handover:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
